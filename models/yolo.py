@@ -23,7 +23,7 @@ except ImportError:
 
 
 class Detect(nn.Module):
-    # stride = None  # strides computed during build
+    stride = None  # strides computed during build
     onnx_dynamic = False  # ONNX export parameter
 
     def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
