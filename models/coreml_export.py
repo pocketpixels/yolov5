@@ -6,6 +6,7 @@ Usage:
 
 import argparse
 import sys
+import os
 import time
 from pathlib import Path
 
@@ -45,11 +46,22 @@ if __name__ == '__main__':
     parser.add_argument('--weights', type=str, default='./yolov5s.pt', help='weights path')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='image size')  # height, width
     parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--labels', nargs='+', type=str, help='class labels, as text file or directly, space separated')
+
     opt = parser.parse_args()
     opt.img_size *= 2 if len(opt.img_size) == 1 else 1  # expand
     print(opt)
     set_logging()
     t = time.time()
+
+    # get labels
+    labels = []
+    if opt.labels:
+        if len(opt.labels) == 1 and os.path.isfile(opt.labels[0]):
+            with open(opt.labels[0], "r") as f:
+                labels = f.read().replace(",", " ").split()
+        else:
+            labels = opt.labels
 
     # Load PyTorch model
     device = select_device(opt.device)
@@ -76,6 +88,16 @@ if __name__ == '__main__':
 
     for _ in range(2):
         y = model(img)  # dry runs
+
+    num_boxes = y[0].shape[1]
+    num_classes = y[0].shape[2] - 5
+
+    if labels:
+        assert len(labels) == num_classes, f'The number of labels specified ({len(labels)}) does not match the number of classes in the model ({num_classes})'
+    else:
+        print("No class labels specified, using generic labels \"Class 1\", \"Class 2\" ...")
+        labels = [f"Class {n+1}" for n in range(num_classes)]
+
     print(f"\n{colorstr('PyTorch:')} starting from {opt.weights} ({file_size(opt.weights):.1f} MB)")
 
     # TorchScript export -----------------------------------------------------------------------------------------------
@@ -100,8 +122,6 @@ if __name__ == '__main__':
         # convert model from torchscript and apply pixel scaling as per detect.py
         orig_model = ct.convert(ts, inputs=[ct.ImageType(name='image', shape=img.shape, scale=1 / 255.0, bias=[0, 0, 0])])
 
-        num_boxes = y[0].shape[1]
-        num_classes = y[0].shape[2] - 5
         spec = orig_model.get_spec()
         old_box_output_name = spec.description.output[1].name
         old_scores_output_name = spec.description.output[0].name
@@ -113,7 +133,6 @@ if __name__ == '__main__':
         spec.description.output[1].type.multiArrayType.dataType = ft.ArrayFeatureType.DOUBLE
 
         yolo_model = ct.models.MLModel(spec)
-
 
         # Build Non Maximum Suppression model
         nms_spec = ct.proto.Model_pb2.Model()
@@ -155,7 +174,7 @@ if __name__ == '__main__':
         nms.iouThreshold = default_iou_threshold
         nms.confidenceThreshold = default_confidence_threshold
         nms.pickTop.perClass = True
-        nms.stringClassLabels.vector.append("card")
+        nms.stringClassLabels.vector.extend(labels)
 
         nms_model = ct.models.MLModel(nms_spec)
 
@@ -194,7 +213,7 @@ if __name__ == '__main__':
         user_defined_metadata = {
             "iou_threshold": str(default_iou_threshold),
             "confidence_threshold": str(default_confidence_threshold),
-            "classes": "card"
+            "classes": ", ".join(labels)
         }
         pipeline.spec.description.metadata.userDefined.update(user_defined_metadata)
 
