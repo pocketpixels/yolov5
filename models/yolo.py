@@ -57,9 +57,10 @@ class Detect(nn.Module):
                     y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
                 else:  # for YOLOv5 on AWS Inferentia https://github.com/ultralytics/yolov5/pull/2953
                     s = self.stride[i].item()
-                    ag = self.anchor_grid[i].view(1, self.na, 1, 1, 2).numpy()
+                    ag = torch.from_numpy(self.anchor_grid[i].view(1, self.na, 1, 1, 2).numpy())
                     xy = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * s  # xy
-                    wh = (y[..., 2:4] * 2) ** 2 * ag  # wh
+                    wh = y[..., 2:4] * 2
+                    wh = wh * wh * ag  # wh
                     y = torch.cat((xy, wh, y[..., 4:]), -1)
                 z.append(y.view(bs, -1, self.no))
 
