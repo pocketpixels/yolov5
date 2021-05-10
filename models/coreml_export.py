@@ -35,9 +35,10 @@ class ExportModel(nn.Module):
         w = self.img_size[0]
         h = self.img_size[1]
         objectness = x[:, 4:5]
+        class_probs = x[:, 5:] * objectness
         boxes = x[:, :4] * torch.tensor([1./w, 1./h, 1./w, 1./h])
         # predictions = x[:, 4:]
-        return (objectness, boxes)
+        return (class_probs, boxes)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -100,12 +101,13 @@ if __name__ == '__main__':
         orig_model = ct.convert(ts, inputs=[ct.ImageType(name='image', shape=img.shape, scale=1 / 255.0, bias=[0, 0, 0])])
 
         num_boxes = y[0].shape[1]
+        num_classes = y[0].shape[2] - 5
         spec = orig_model.get_spec()
         old_box_output_name = spec.description.output[1].name
         old_scores_output_name = spec.description.output[0].name
         ct.utils.rename_feature(spec, old_scores_output_name, "raw_confidence")
         ct.utils.rename_feature(spec, old_box_output_name, "raw_coordinates")
-        spec.description.output[0].type.multiArrayType.shape.extend([num_boxes, 1])
+        spec.description.output[0].type.multiArrayType.shape.extend([num_boxes, num_classes])
         spec.description.output[1].type.multiArrayType.shape.extend([num_boxes, 4])
         spec.description.output[0].type.multiArrayType.dataType = ft.ArrayFeatureType.DOUBLE
         spec.description.output[1].type.multiArrayType.dataType = ft.ArrayFeatureType.DOUBLE
@@ -129,7 +131,7 @@ if __name__ == '__main__':
         nms_spec.description.output[0].name = "confidence"
         nms_spec.description.output[1].name = "coordinates"
 
-        output_sizes = [1, 4]
+        output_sizes = [num_classes, 4]
         for i in range(2):
             ma_type = nms_spec.description.output[i].type.multiArrayType
             ma_type.shapeRange.sizeRanges.add()
