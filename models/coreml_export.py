@@ -14,12 +14,11 @@ sys.path.append(Path(__file__).parent.parent.absolute().__str__())  # to run '$ 
 
 import torch
 import torch.nn as nn
-from torch.utils.mobile_optimizer import optimize_for_mobile
 
 import models
 from models.experimental import attempt_load
 from utils.activations import Hardswish, SiLU
-from utils.general import colorstr, check_img_size, check_requirements, file_size, set_logging
+from utils.general import colorstr, check_img_size, file_size, set_logging
 from utils.torch_utils import select_device
 
 
@@ -38,8 +37,8 @@ class ExportModel(nn.Module):
         objectness = x[:, 4:5]
         class_probs = x[:, 5:] * objectness
         boxes = x[:, :4] * torch.tensor([1./w, 1./h, 1./w, 1./h])
-        # predictions = x[:, 4:]
-        return (class_probs, boxes)
+        return class_probs, boxes
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -93,7 +92,8 @@ if __name__ == '__main__':
     num_classes = y[0].shape[2] - 5
 
     if labels:
-        assert len(labels) == num_classes, f'The number of labels specified ({len(labels)}) does not match the number of classes in the model ({num_classes})'
+        assert len(labels) == num_classes, f'The number of labels specified ({len(labels)}) '\
+                                           f'does not match the number of classes in the model ({num_classes})'
     else:
         print("No class labels specified, using generic labels \"Class 1\", \"Class 2\" ...")
         labels = [f"Class {n+1}" for n in range(num_classes)]
