@@ -188,11 +188,11 @@ if __name__ == '__main__':
         pipeline.spec.description.input[1].shortDescription = "(optional) IOU Threshold override"
         pipeline.spec.description.input[2].shortDescription = "(optional) Confidence Threshold override"
         pipeline.spec.description.output[0].shortDescription = u"Boxes Class confidence"
-        pipeline.spec.description.output[1].shortDescription = u"Boxes [x, y, width, height] (relative to image size)"
+        pipeline.spec.description.output[1].shortDescription = u"Boxes [x, y, width, height] (normalized to [0...1])"
 
         # Add metadata to the model.
-        pipeline.spec.description.metadata.shortDescription = "YOLO v5 card detector"
-        pipeline.spec.description.metadata.author = "Pocket Pixels Inc."
+        pipeline.spec.description.metadata.shortDescription = "YOLO v5 object detector"
+        pipeline.spec.description.metadata.author = "Ultralytics"
 
         # Add the list of class labels and the default threshold values too.
         user_defined_metadata = {
