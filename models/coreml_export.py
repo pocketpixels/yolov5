@@ -45,7 +45,6 @@ if __name__ == '__main__':
     parser.add_argument('--weights', type=str, default='./yolov5s.pt', help='weights path')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='image size')  # height, width
     parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
-    parser.add_argument('--labels', nargs='+', type=str, help='class labels, as text file or directly, space separated')
 
     opt = parser.parse_args()
     opt.img_size *= 2 if len(opt.img_size) == 1 else 1  # expand
@@ -53,19 +52,12 @@ if __name__ == '__main__':
     set_logging()
     t = time.time()
 
-    # get labels
-    labels = []
-    if opt.labels:
-        if len(opt.labels) == 1 and os.path.isfile(opt.labels[0]):
-            with open(opt.labels[0], "r") as f:
-                labels = f.read().replace(",", " ").split()
-        else:
-            labels = opt.labels
-
     # Load PyTorch model
     device = select_device(opt.device)
     model = attempt_load(opt.weights, map_location=device)  # load FP32 model
     export_model = ExportModel(model, img_size=opt.img_size)
+
+    labels = model.names
 
     # Checks
     gs = int(max(model.stride))  # grid size (max stride)
@@ -90,13 +82,6 @@ if __name__ == '__main__':
 
     num_boxes = y[0].shape[1]
     num_classes = y[0].shape[2] - 5
-
-    if labels:
-        assert len(labels) == num_classes, f'The number of labels specified ({len(labels)}) '\
-                                           f'does not match the number of classes in the model ({num_classes})'
-    else:
-        print("No class labels specified, using generic labels \"Class 1\", \"Class 2\" ...")
-        labels = [f"Class {n+1}" for n in range(num_classes)]
 
     print(f"\n{colorstr('PyTorch:')} starting from {opt.weights} ({file_size(opt.weights):.1f} MB)")
 
