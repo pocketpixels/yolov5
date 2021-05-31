@@ -45,6 +45,7 @@ if __name__ == '__main__':
     parser.add_argument('--weights', type=str, default='./yolov5s.pt', help='weights path')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='image size')  # height, width
     parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
+    parser.add_argument('--half', action='store_true', help='FP16 half-precision export')
 
     opt = parser.parse_args()
     opt.img_size *= 2 if len(opt.img_size) == 1 else 1  # expand
@@ -207,6 +208,10 @@ if __name__ == '__main__':
         pipeline.spec.specificationVersion = 3
 
         final_model = ct.models.MLModel(pipeline.spec)
+        
+        if opt.half:
+            from coremltools.models.neural_network import quantization_utils            
+            final_model = quantization_utils.quantize_weights(final_model, nbits=16)
 
         f = opt.weights.replace('.pt', '.mlmodel')  # filename
         final_model.save(f)
