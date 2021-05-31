@@ -156,7 +156,7 @@ if __name__ == '__main__':
         nms.confidenceThresholdInputFeatureName = "confidenceThreshold"
 
         default_iou_threshold = 0.45
-        default_confidence_threshold = 0.4
+        default_confidence_threshold = 0.7
         nms.iouThreshold = default_iou_threshold
         nms.confidenceThreshold = default_confidence_threshold
         nms.pickTop.perClass = True
