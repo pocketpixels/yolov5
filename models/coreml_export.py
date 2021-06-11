@@ -7,7 +7,10 @@ Usage:
 import argparse
 import sys
 import os
+import types
 import time
+import tempfile
+
 from pathlib import Path
 
 sys.path.append(Path(__file__).parent.parent.absolute().__str__())  # to run '$ python *.py' files in subdirectories
@@ -20,6 +23,11 @@ from models.experimental import attempt_load
 from utils.activations import Hardswish, SiLU
 from utils.general import colorstr, check_img_size, file_size, set_logging
 from utils.torch_utils import select_device
+
+import coremltools as ct
+from coremltools.models.pipeline import Pipeline
+from coremltools.models import datatypes
+import coremltools.proto.FeatureTypes_pb2 as ft
 
 
 class ExportModel(nn.Module):
@@ -40,6 +48,31 @@ class ExportModel(nn.Module):
         return class_probs, boxes
 
 
+def detect_export_forward(self, x):
+    z = []  # inference output
+    for i in range(self.nl):
+        x[i] = self.m[i](x[i])  # conv
+        bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+        x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+
+        if self.grid[i].shape[2:4] != x[i].shape[2:4] or self.onnx_dynamic:
+            self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
+
+        y = x[i].sigmoid()
+        class_prob_sums = y[..., 5:].sum(dim=-1)
+        normalized_class_probs = y[..., 5:] / torch.clamp(class_prob_sums, min=1.0)[..., None]
+
+        s = self.stride[i].item()
+        ag = torch.from_numpy(self.anchor_grid[i].view(1, self.na, 1, 1, 2).numpy())
+        xy = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * s  # xy
+        wh = y[..., 2:4] * 2
+        wh = wh * wh * ag  # wh
+        y = torch.cat((xy, wh, y[..., 4:5], normalized_class_probs), -1)
+        z.append(y.view(bs, -1, self.no))
+
+    return torch.cat(z, 1), x
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str, default='./yolov5s.pt', help='weights path')
@@ -56,7 +89,6 @@ if __name__ == '__main__':
     # Load PyTorch model
     device = select_device(opt.device)
     model = attempt_load(opt.weights, map_location=device)  # load FP32 model
-    export_model = ExportModel(model, img_size=opt.img_size)
 
     labels = model.names
 
@@ -77,9 +109,12 @@ if __name__ == '__main__':
                 m.act = SiLU()
         elif isinstance(m, models.yolo.Detect):
             m.inplace = False
+            m.forward = types.MethodType(detect_export_forward, m)
 
     for _ in range(2):
         y = model(img)  # dry runs
+
+    export_model = ExportModel(model, img_size=opt.img_size)
 
     num_boxes = y[0].shape[1]
     num_classes = y[0].shape[2] - 5
@@ -96,14 +131,14 @@ if __name__ == '__main__':
     except Exception as e:
         print(f'{prefix} export failure: {e}')
 
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_file = os.path.join(tmp_dir, "model")
+        torch.jit.save(ts, tmp_file)
+        ts = torch.jit.load(tmp_file)
+
     # CoreML export ----------------------------------------------------------------------------------------------------
     prefix = colorstr('CoreML:')
     try:
-        import coremltools as ct
-        from coremltools.models.pipeline import Pipeline
-        from coremltools.models import datatypes
-        import coremltools.proto.FeatureTypes_pb2 as ft
-
         print(f'{prefix} starting export with coremltools {ct.__version__}...')
         # convert model from torchscript and apply pixel scaling as per detect.py
         orig_model = ct.convert(ts, inputs=[ct.ImageType(name='image', shape=img.shape, scale=1 / 255.0, bias=[0, 0, 0])])
