@@ -194,7 +194,7 @@ if __name__ == '__main__':
         default_confidence_threshold = 0.7
         nms.iouThreshold = default_iou_threshold
         nms.confidenceThreshold = default_confidence_threshold
-        nms.pickTop.perClass = True
+        nms.pickTop.perClass = False
         nms.stringClassLabels.vector.extend(labels)
 
         nms_model = ct.models.MLModel(nms_spec)
