@@ -22,7 +22,8 @@ class Albumentations:
             self.transform = A.Compose([
                 A.Blur(p=0.1),
                 A.MedianBlur(p=0.1),
-                A.ToGray(p=0.01)],
+                A.ToGray(p=0.05),
+                A.ISONoise(p=0.1)],
                 bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
 
             logging.info(colorstr('albumentations: ') + ', '.join(f'{x}' for x in self.transform.transforms))
