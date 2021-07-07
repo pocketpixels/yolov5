@@ -470,10 +470,14 @@ def train(hyp,  # path/to/hyp.yaml or hyp dictionary
             for f in last, best:
                 if f.exists():
                     strip_optimizer(f)  # strip optimizers
-            if loggers['wandb']:  # Log the stripped model
-                loggers['wandb'].log_artifact(str(best if best.exists() else last), type='model',
-                                              name='run_' + wandb_logger.wandb_run.id + '_model',
-                                              aliases=['latest', 'best', 'stripped'])
+            if loggers['wandb']:  # Log the stripped models
+                if best.exists():
+                    loggers['wandb'].log_artifact(str(best), type='model',
+                                                  name='run_' + wandb_logger.wandb_run.id + '_best_model.pt',
+                                                  aliases=['best'])
+                loggers['wandb'].log_artifact(str(last), type='model',
+                                              name='run_' + wandb_logger.wandb_run.id + '_last_model.pt',
+                                              aliases=['last'])
         wandb_logger.finish_run()
 
     torch.cuda.empty_cache()
