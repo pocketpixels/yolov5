@@ -24,7 +24,6 @@ class Albumentations:
                 A.MedianBlur(p=0.1),
                 # A.ToGray(p=0.05),
                 A.ISONoise(p=0.5),
-                A.OpticalDistortion(p=0.5),
                 A.RandomToneCurve(p=0.5),
                 A.RGBShift(p=0.5)
             ],
